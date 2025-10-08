@@ -22,6 +22,14 @@ This project is a fully automated **Telegram bot** that uses **AI** and the **Am
 
 --- 
 
+## 📲 Try the Bot on Telegram
+
+You can chat with the bot here:
+
+👉 [Open Telegram Bot](https://t.me/tanish_flight_bot)
+
+--- 
+
 ## ⚙️ How It Works
 
 1. **User sends a message** to the Telegram bot.
