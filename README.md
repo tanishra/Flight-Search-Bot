@@ -16,6 +16,12 @@ This project is a fully automated **Telegram bot** that uses **AI** and the **Am
 
 ---
 
+## Workflow 
+
+![Flight Search Workflow](assets/n8n-workflow.png)
+
+--- 
+
 ## ⚙️ How It Works
 
 1. **User sends a message** to the Telegram bot.
