@@ -1,0 +1,380 @@
+{
+  "name": "Flight Search Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -576,
+        -96
+      ],
+      "id": "8deac185-3f69-4195-aed0-daf82110548a",
+      "name": "Telegram Trigger",
+      "webhookId": "1aaa7406-1928-42ef-991f-ef1686c0ad7c",
+      "credentials": {
+        "telegramApi": {
+          "id": "WNmX2nmMjwYiIhqZ",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extract flight search parameters from this message : \n\n\"{{ $json.choices[0].message.content }}\"\n\nreturn exactly one JSON object following the system message rules and schema above.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a flight search parameter extractor for a Telegram bot.\n\nYour job: Read a short user message and return exactly ONE JSON object representing the payload for the Amadeus Flight Offers Search API.\n\n---\n\n### Behavior Rules\n\n1. **Primary Goal**\n   - Always output a *complete Amadeus API payload* in valid JSON format, like:\n     {\n       \"status\": \"ready\",\n       \"payload\": {\n         \"originLocationCode\": \"DEL\",\n         \"destinationLocationCode\": \"BOM\",\n         \"departureDate\": \"2025-10-15\",\n         \"adults\": 1,\n         \"nonStop\": false,\n         \"max\": 5,\n         \"currency\": \"INR\"\n       }\n     }\n\n2. **Defaults**\n   - adults = 1  \n   - nonStop = false  \n   - max = 5  \n   - currency = \"INR\"\n\n3. **If the user gives city names (not IATA codes):**\n   - Try to infer the correct 3-letter IATA codes using standard airport mappings (e.g., \"Delhi\" → \"DEL\", \"Mumbai\" → \"BOM\").\n   - Set `needs_iata_resolution: false` since you resolved it automatically.\n\n4. **If the user mentions “return” or “round trip”:**\n   - Add `\"returnDate\"` and include it in the payload.\n   - Example:\n     {\n       \"originLocationCode\": \"DEL\",\n       \"destinationLocationCode\": \"BOM\",\n       \"departureDate\": \"2025-11-10\",\n       \"returnDate\": \"2025-11-15\",\n       \"adults\": 1,\n       \"currency\": \"INR\"\n     }\n\n5. **Date Parsing**\n   - Accept natural language like \"today\", \"tomorrow\", \"next Friday\".\n   - Convert to ISO format (YYYY-MM-DD) in **Asia/Kolkata (IST)** timezone.\n   - If the date is unclear or in the past, politely ask for clarification:\n     {\n       \"status\": \"ask_user\",\n       \"message_to_user\": \"Please confirm the travel date in YYYY-MM-DD format (e.g., 2025-11-10).\"\n     }\n\n6. **If any required field is missing (origin, destination, date):**\n   - Output:\n     {\n       \"status\": \"ask_user\",\n       \"message_to_user\": \"Please provide your origin, destination, and travel date. Example: 'Flight from Delhi to Mumbai on 2025-11-10'\"\n     }\n\n7. **Output Formatting**\n   - Always return ONLY JSON.\n   - Do not include explanations or text outside JSON.\n   - All IATA codes must be uppercase.\n   - Trim spaces in all inputs.\n\n---\n\n### Examples\n\n**Input:**  \n\"Ahmedabad to Delhi on 2025-11-10 for 2 adults and 2 kids\"\n\n**Output:**  \n{\n  \"status\": \"ready\",\n  \"payload\": {\n    \"originLocationCode\": \"AMD\",\n    \"destinationLocationCode\": \"DEL\",\n    \"departureDate\": \"2025-11-10\",\n    \"adults\": 2,\n    \"children\": 2,\n    \"nonStop\": false,\n    \"max\": 5,\n    \"currency\": \"INR\"\n  }\n}\n\n---\n\n**Input:**  \n\"Need flight from London to Paris tomorrow\"\n\n**Output:**  \n{\n  \"status\": \"ready\",\n  \"payload\": {\n    \"originLocationCode\": \"LON\",\n    \"destinationLocationCode\": \"PAR\",\n    \"departureDate\": \"2025-10-06\",\n    \"adults\": 1,\n    \"nonStop\": false,\n    \"max\": 5,\n    \"currency\": \"INR\"\n  }\n}\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -112,
+        -96
+      ],
+      "id": "c81df660-3bac-4fca-8949-05ae33c06ad3",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"status\": \"ok\",\n  \"flight_search_payload\": {\n    \"originLocationCode\": \"DEL\",\n    \"destinationLocationCode\": \"BOM\",\n    \"departureDate\": \"2025-10-15\",\n    \"adults\": 1,\n    \"currencyCode\": \"INR\",\n    \"nonStop\": false,\n    \"max\": 5\n  }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        96,
+        96
+      ],
+      "id": "7499a942-a515-49a5-abbb-0f638b321c11",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "53a6a0cf-ccea-4abc-af07-0ef1e3cea8d0",
+              "leftValue": "={{ $json.output.status }}",
+              "rightValue": "ask_user",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        -96
+      ],
+      "id": "d2004590-2a25-40e2-8489-234b10fd1a65",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        112
+      ],
+      "id": "4f1f4248-a569-40c3-8ca9-bbd855a1cce7",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "1gpv4enTwDh0Lx7B",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Converts Amadeus /v2/shopping/flight-offers JSON into 1..N Telegram messages\n// Works with MarkdownV2 and formats times to Asia/Kolkata.\n// Input: $json has { data: [ flight-offer, ... ] } (like your sample)\n// Output item fields for Telegram node:\n//   chat_id, text, parse_mode, reply_markup\n\nconst CHAT_ID = $json.chatId || $json.chat_id || '<PUT_USER_CHAT_ID>'; // e.g. from Telegram Trigger or hardcode\nconst tz = 'Asia/Kolkata';\nconst MAX_OFFERS =$input.first().json.meta.count ; // change if you want more/less\nconst offers = Array.isArray($json?.data) ? $json.data : [];\n\n// ---------- helpers ----------\nconst fmtDT = (iso) => {\n  if (!iso) return '';\n  try {\n    const d = new Date(iso);\n    const date = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', timeZone: tz }).format(d);\n    const time = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz }).format(d);\n    return `${date}, ${time} IST`;\n  } catch { return iso; }\n};\n\n// Telegram MarkdownV2 escaping\nconst esc = (s = '') => String(s).replace(/([_*\\[\\]()~`>#+\\-=|{}.!\\\\])/g, '\\\\$1');\n\n// Build per-offer text\nfunction buildText(offer) {\n  const offerId = offer.id || '';\n  const seats = offer.numberOfBookableSeats ?? 'N/A';\n  const lastTicket = offer.lastTicketingDateTime || offer.lastTicketingDate || '—';\n  const price = offer.price || {};\n  const total = price.total ?? price.grandTotal ?? 'N/A';\n  const currency = price.currency || '';\n  const base = price.base ?? '';\n  const itin = offer.itineraries?.[0] || {};\n  const duration = itin.duration || '';\n  const segs = itin.segments || [];\n  const first = segs[0] || {};\n  const dep = first.departure || {};\n  const arr = first.arrival || {};\n  const carrier = first.carrierCode || offer.validatingAirlineCodes?.[0] || '';\n  const flightNo = first.number || '';\n  const stops = first.numberOfStops ?? 0;\n\n  // fare/bags (first traveler, first seg)\n  const tp0 = offer.travelerPricings?.[0] || {};\n  const fd0 = tp0.fareDetailsBySegment?.[0] || {};\n  const cabin = fd0.cabin || '';\n  const branded = fd0.brandedFareLabel || fd0.brandedFare || '';\n  let checked = 'N/A';\n  if (fd0.includedCheckedBags?.weight) {\n    checked = `${fd0.includedCheckedBags.weight}${fd0.includedCheckedBags.weightUnit || ''}`;\n  } else if (fd0.includedCheckedBags?.quantity) {\n    checked = `${fd0.includedCheckedBags.quantity}pc`;\n  }\n  const amenities = (fd0.amenities || []).map(a => a?.description).filter(Boolean).join(', ') || '—';\n\n  // multi-segment line (if any)\n  const segLines = segs.map((s, idx) => {\n    const d = s.departure || {}, a = s.arrival || {};\n    return `S${idx+1}: ${esc(d.iataCode || '')} → ${esc(a.iataCode || '')}  (${esc(fmtDT(d.at))} → ${esc(fmtDT(a.at))})`;\n  }).join('\\n');\n\n  return [\n    `Flight #${esc(offerId)} — *${esc(carrier)} ${esc(flightNo)}*`,\n    `Route: \\`${esc(dep.iataCode || '')}${dep.terminal ? esc(' (T' + dep.terminal + ')') : ''} ➜ ${esc(arr.iataCode || '')}${arr.terminal ? esc(' (T' + arr.terminal + ')') : ''}\\``,\n    `Date / Time: *${esc(fmtDT(dep.at))} ➜ ${esc(fmtDT(arr.at))}*`,\n    `Duration: *${esc(duration)}* • Stops: *${esc(stops)}*`,\n    `Class: *${esc(cabin)}* (${esc(branded)}) • Seats: *${esc(seats)}*`,\n    segs.length > 1 ? `\\n${segLines}` : ``,\n    ``,\n    `*Price:* \\`${esc(total)} ${esc(currency)}\\` (base \\`${esc(base)}\\`)`,\n    `Baggage: Checked *${esc(checked)}*`,\n    `Amenities: ${esc(amenities)}`,\n    ``,\n    `_Validity / Ticketing_: Last ticketing date *${esc(lastTicket)}*`\n  ].filter(Boolean).join('\\n');\n}\n\n// ---------- build output ----------\nconst picked = offers.slice(0, MAX_OFFERS); // or sort by cheapest before slicing\n\nif (!picked.length) {\n  return [{ json: { chat_id: CHAT_ID, text: 'No flight offers found.', parse_mode: 'MarkdownV2' }}];\n}\n\nreturn picked.map(offer => {\n  const text = buildText(offer);\n  const reply_markup = {\n    inline_keyboard: [\n      [\n        { text: 'Book this flight', url: `https://your-booking.link/book?offerId=${encodeURIComponent(offer.id)}` },\n        { text: 'More details', callback_data: `details|${offer.id}` }\n      ]\n    ]\n  };\n  return { json: { chat_id: CHAT_ID, text, parse_mode: 'MarkdownV2', reply_markup } };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        32
+      ],
+      "id": "4a737e0c-6bba-4bea-9a9e-438fd258af7c",
+      "name": "Filter Data for Telegram"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}\n\nreturn JSON.parse($input.first().json.data)"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        32
+      ],
+      "id": "f7d7cdb8-f9d4-44d8-bebf-a01075884db6",
+      "name": "JSON Parsing"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.euron.one/api/v1/euri/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \" {{ $json.message.text }} try understanding user input ,my user is trying to serach for flight and user have mentioned may be a origin and destination location in there own way do one thing parse the data and return a a simple string with origin code , destination code and date in yyyy-mm-dd format just as a strring and even try to check user message and understand for how many person user is planning to book a flight and return that in the same string if such information is not avaible then give me some helpfull amainzg beautifull message as a return\"\n    }\n  ],\n  \"model\": \"gpt-4.1-nano\",\n  \"max_tokens\": 500,\n  \"temperature\": 0.3\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -352,
+        -96
+      ],
+      "id": "b5c60fda-58b4-4304-9a2e-6761f571e89a",
+      "name": "EURI",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "lCCMHh1fJR6JiEA9",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://test.api.amadeus.com/v2/shopping/flight-offers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "=originLocationCode",
+              "value": "={{ $json.output.flight_search_payload.originLocationCode }}"
+            },
+            {
+              "name": "destinationLocationCode",
+              "value": "={{ $json.output.flight_search_payload.destinationLocationCode }}"
+            },
+            {
+              "name": "departureDate",
+              "value": "={{ $json.output.flight_search_payload.departureDate }}"
+            },
+            {
+              "name": "adults",
+              "value": "={{ $json.output.flight_search_payload.adults }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        464,
+        32
+      ],
+      "id": "11fc1def-510e-4a40-a8b7-ff9657a58f90",
+      "name": "Amadeus",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "avl3uvtDXmRlksxB",
+          "name": "Amadeus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.text }} ",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1088,
+        48
+      ],
+      "id": "a13bca55-a5f3-4560-a698-1e7ffebceaac",
+      "name": "Send Flight Details",
+      "webhookId": "6afdfff0-f42d-43a5-af2b-fbacf076ac60",
+      "credentials": {
+        "telegramApi": {
+          "id": "WNmX2nmMjwYiIhqZ",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "Give me more details about your query",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        528,
+        -224
+      ],
+      "id": "87fb78cf-007b-484d-8fe3-319de766ecfe",
+      "name": "Ask For More Details",
+      "webhookId": "9aa748e7-6574-4d88-9154-d081b72586ed",
+      "credentials": {
+        "telegramApi": {
+          "id": "WNmX2nmMjwYiIhqZ",
+          "name": "Telegram account 3"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "EURI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Ask For More Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Amadeus",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON Parsing": {
+      "main": [
+        [
+          {
+            "node": "Filter Data for Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EURI": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Amadeus": {
+      "main": [
+        [
+          {
+            "node": "JSON Parsing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Data for Telegram": {
+      "main": [
+        [
+          {
+            "node": "Send Flight Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "03582af5-7c81-4421-ae3d-3868588f41bd",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f5eaed8a555982689cfe5d158f4c7415850055f678058617c4bd47872da5a6e6"
+  },
+  "id": "oqrkbGDn2FJf6Mt2",
+  "tags": []
+}
